@@ -1,165 +1,112 @@
-// SPDX-FileCopyrightText: 2020 Efabless Corporation
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company:
+// Engineer:
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Create Date: 23.04.2022 15:20:52
+// Design Name:
+// Module Name: bw_mul
+// Project Name:
+// Target Devices:
+// Tool Versions:
+// Description:
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// Dependencies:
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-// SPDX-License-Identifier: Apache-2.0
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+//
+//////////////////////////////////////////////////////////////////////////////////
 
-`default_nettype none
-/*
- *-------------------------------------------------------------
- *
- * user_proj_example
- *
- * This is an example of a (trivially simple) user project,
- * showing how the user project can connect to the logic
- * analyzer, the wishbone bus, and the I/O pads.
- *
- * This project generates an integer count, which is output
- * on the user area GPIO pads (digital output only).  The
- * wishbone connection allows the project to be controlled
- * (start and stop) from the management SoC program.
- *
- * See the testbenches in directory "mprj_counter" for the
- * example programs that drive this user project.  The three
- * testbenches are "io_ports", "la_test1", and "la_test2".
- *
- *-------------------------------------------------------------
- */
-
-module user_proj_example #(
-    parameter BITS = 32
-)(
-`ifdef USE_POWER_PINS
-    inout vccd1,	// User area 1 1.8V supply
-    inout vssd1,	// User area 1 digital ground
-`endif
-
-    // Wishbone Slave ports (WB MI A)
-    input wb_clk_i,
-    input wb_rst_i,
-    input wbs_stb_i,
-    input wbs_cyc_i,
-    input wbs_we_i,
-    input [3:0] wbs_sel_i,
-    input [31:0] wbs_dat_i,
-    input [31:0] wbs_adr_i,
-    output wbs_ack_o,
-    output [31:0] wbs_dat_o,
-
-    // Logic Analyzer Signals
-    input  [127:0] la_data_in,
-    output [127:0] la_data_out,
-    input  [127:0] la_oenb,
-
-    // IOs
-    input  [`MPRJ_IO_PADS-1:0] io_in,
-    output [`MPRJ_IO_PADS-1:0] io_out,
-    output [`MPRJ_IO_PADS-1:0] io_oeb,
-
-    // IRQ
-    output [2:0] irq
+module user_proj_example(
+    input signed [7:0]a, // 8 bit input
+    input signed [7:0]b, // 8 bit input
+    output signed [7:0]p // 16 bit product
 );
-    wire clk;
-    wire rst;
 
-    wire [`MPRJ_IO_PADS-1:0] io_in;
-    wire [`MPRJ_IO_PADS-1:0] io_out;
-    wire [`MPRJ_IO_PADS-1:0] io_oeb;
 
-    wire [31:0] rdata; 
-    wire [31:0] wdata;
-    wire [BITS-1:0] count;
+    wire signed [(8 - 2)*2+1:0]sg; // sum out gray cell
+    wire signed [(8 - 2)*2+1:0]cg; // carry out gray cell
 
-    wire valid;
-    wire [3:0] wstrb;
-    wire [31:0] la_write;
+    wire signed [(8-1)*(8-1)+1:0]sw; // sum out white cell
+    wire signed [(8-1)*(8-1)+1:0]cw; // carry out white cell
 
-    // WB MI A
-    assign valid = wbs_cyc_i && wbs_stb_i; 
-    assign wstrb = wbs_sel_i & {4{wbs_we_i}};
-    assign wbs_dat_o = rdata;
-    assign wdata = wbs_dat_i;
+    wire signed [8 - 1:0]fs; // full adder sum
+    wire signed [8 - 1:0]fc; // full adder carry
 
-    // IO
-    assign io_out = count;
-    assign io_oeb = {(`MPRJ_IO_PADS-1){rst}};
+	carry_adder w0 (a[0], b[0], 0, 0, cw[0]);
+	white w1 (a[1], b[0], 0, 0, sw[1], cw[1]);
+	white w2 (a[2], b[0], 0, 0, sw[2], cw[2]);
+	white w3 (a[3], b[0], 0, 0, sw[3], cw[3]);
+	white w4 (a[4], b[0], 0, 0, sw[4], cw[4]);
+	white w5 (a[5], b[0], 0, 0, sw[5], cw[5]);
+	white w6 (a[6], b[0], 0, 0, sw[6], cw[6]);
 
-    // IRQ
-    assign irq = 3'b000;	// Unused
+	carry_adder w7 (a[0], b[1], cw[0], sw[1], cw[7]);
+	white w8 (a[1], b[1], cw[1], sw[2], sw[8], cw[8]);
+	white w9 (a[2], b[1], cw[2], sw[3], sw[9], cw[9]);
+	white w10 (a[3], b[1], cw[3], sw[4], sw[10], cw[10]);
+	white w11 (a[4], b[1], cw[4], sw[5], sw[11], cw[11]);
+	white w12 (a[5], b[1], cw[5], sw[6], sw[12], cw[12]);
+	white w13 (a[6], b[1], cw[6], sg[0], sw[13], cw[13]);
+	carry_adder w14 (a[0], b[2], cw[7], sw[8], cw[14]);
+	white w15 (a[1], b[2], cw[8], sw[9], sw[15], cw[15]);
+	white w16 (a[2], b[2], cw[9], sw[10], sw[16], cw[16]);
+	white w17 (a[3], b[2], cw[10], sw[11], sw[17], cw[17]);
+	white w18 (a[4], b[2], cw[11], sw[12], sw[18], cw[18]);
+	white w19 (a[5], b[2], cw[12], sw[13], sw[19], cw[19]);
+	white w20 (a[6], b[2], cw[13], sg[1], sw[20], cw[20]);
+	carry_adder w21 (a[0], b[3], cw[14], sw[15], cw[21]);
+	white w22 (a[1], b[3], cw[15], sw[16], sw[22], cw[22]);
+	white w23 (a[2], b[3], cw[16], sw[17], sw[23], cw[23]);
+	white w24 (a[3], b[3], cw[17], sw[18], sw[24], cw[24]);
+	white w25 (a[4], b[3], cw[18], sw[19], sw[25], cw[25]);
+	white w26 (a[5], b[3], cw[19], sw[20], sw[26], cw[26]);
+	white w27 (a[6], b[3], cw[20], sg[2], sw[27], cw[27]);
+	carry_adder w28 (a[0], b[4], cw[21], sw[22], cw[28]);
+	white w29 (a[1], b[4], cw[22], sw[23], sw[29], cw[29]);
+	white w30 (a[2], b[4], cw[23], sw[24], sw[30], cw[30]);
+	white w31 (a[3], b[4], cw[24], sw[25], sw[31], cw[31]);
+	white w32 (a[4], b[4], cw[25], sw[26], sw[32], cw[32]);
+	white w33 (a[5], b[4], cw[26], sw[27], sw[33], cw[33]);
+	white w34 (a[6], b[4], cw[27], sg[3], sw[34], cw[34]);
+	white w35 (a[0], b[5], cw[28], sw[29], sw[35], cw[35]);
+	white w36 (a[1], b[5], cw[29], sw[30], sw[36], cw[36]);
+	white w37 (a[2], b[5], cw[30], sw[31], sw[37], cw[37]);
+	white w38 (a[3], b[5], cw[31], sw[32], sw[38], cw[38]);
+	white w39 (a[4], b[5], cw[32], sw[33], sw[39], cw[39]);
+	white w40 (a[5], b[5], cw[33], sw[34], sw[40], cw[40]);
+	white w41 (a[6], b[5], cw[34], sg[4], sw[41], cw[41]);
+	white w42 (a[0], b[6], cw[35], sw[36], sw[42], cw[42]);
+	white w43 (a[1], b[6], cw[36], sw[37], sw[43], cw[43]);
+	white w44 (a[2], b[6], cw[37], sw[38], sw[44], cw[44]);
+	white w45 (a[3], b[6], cw[38], sw[39], sw[45], cw[45]);
+	white w46 (a[4], b[6], cw[39], sw[40], sw[46], cw[46]);
+	white w47 (a[5], b[6], cw[40], sw[41], sw[47], cw[47]);
+	sum_adder_white w48 (a[6], b[6], cw[41], sg[5], sw[48]);
 
-    // LA
-    assign la_data_out = {{(127-BITS){1'b0}}, count};
-    // Assuming LA probes [63:32] are for controlling the count register  
-    assign la_write = ~la_oenb[63:32] & ~{BITS{valid}};
-    // Assuming LA probes [65:64] are for controlling the count clk & reset  
-    assign clk = (~la_oenb[64]) ? la_data_in[64]: wb_clk_i;
-    assign rst = (~la_oenb[65]) ? la_data_in[65]: wb_rst_i;
+	gray g0 (a[7], b[0], 0, 0, sg[0], cg[0]);
+	gray g1 (a[7], b[1], 0, cg[0], sg[1], cg[1]);
+	gray g2 (a[7], b[2], 0, cg[1], sg[2], cg[2]);
+	gray g3 (a[7], b[3], 0, cg[2], sg[3], cg[3]);
+	gray g4 (a[7], b[4], 0, cg[3], sg[4], cg[4]);
+	sum_adder_gray  g5 (a[7], b[5], 0, cg[4], cg[5]);
 
-    counter #(
-        .BITS(BITS)
-    ) counter(
-        .clk(clk),
-        .reset(rst),
-        .ready(wbs_ack_o),
-        .valid(valid),
-        .rdata(rdata),
-        .wdata(wbs_dat_i),
-        .wstrb(wstrb),
-        .la_write(la_write),
-        .la_input(la_data_in[63:32]),
-        .count(count)
-    );
+	gray g7 (a[0], b[7], cw[42], sw[43], sg[7], cg[7]);
+	gray g8 (a[1], b[7], cw[43], sw[44], sg[8], cg[8]);
+	gray g9 (a[2], b[7], cw[44], sw[45], sg[9], cg[9]);
+	gray g10 (a[3], b[7], cw[45], sw[46], sg[10], cg[10]);
+	gray g11 (a[4], b[7], cw[46], sw[47], sg[11], cg[11]);
+	sum_adder_gray  g12 (a[5], b[7], cw[47], sw[48], cg[12]);
+
+	fa fa0 (1, cg[7], sg[8], fs[0], fc[0]);
+	fa fa1 (fc[0], cg[8], sg[9], fs[1], fc[1]);
+	fa fa2 (fc[1], cg[9], sg[10], fs[2], fc[2]);
+	fa fa3 (fc[2], cg[10], sg[11], fs[3], fc[3]);
+	fa fa4 (fc[3], cg[11], sg[12], fs[4], fc[4]);
+
+	assign p = {fs[4], fs[3], fs[2], fs[1], fs[0], sg[7], sw[42], sw[35]};
 
 endmodule
-
-module counter #(
-    parameter BITS = 32
-)(
-    input clk,
-    input reset,
-    input valid,
-    input [3:0] wstrb,
-    input [BITS-1:0] wdata,
-    input [BITS-1:0] la_write,
-    input [BITS-1:0] la_input,
-    output ready,
-    output [BITS-1:0] rdata,
-    output [BITS-1:0] count
-);
-    reg ready;
-    reg [BITS-1:0] count;
-    reg [BITS-1:0] rdata;
-
-    always @(posedge clk) begin
-        if (reset) begin
-            count <= 0;
-            ready <= 0;
-        end else begin
-            ready <= 1'b0;
-            if (~|la_write) begin
-                count <= count + 1;
-            end
-            if (valid && !ready) begin
-                ready <= 1'b1;
-                rdata <= count;
-                if (wstrb[0]) count[7:0]   <= wdata[7:0];
-                if (wstrb[1]) count[15:8]  <= wdata[15:8];
-                if (wstrb[2]) count[23:16] <= wdata[23:16];
-                if (wstrb[3]) count[31:24] <= wdata[31:24];
-            end else if (|la_write) begin
-                count <= la_write & la_input;
-            end
-        end
-    end
-
-endmodule
-`default_nettype wire
